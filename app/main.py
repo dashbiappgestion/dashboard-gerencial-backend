@@ -10,7 +10,7 @@ import os
 
 from app.config import get_settings
 from app.database import reset_engine, test_connection
-from app.routers import kpis
+from app.routers import kpis, forecast
 
 logger = logging.getLogger(__name__)
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
@@ -57,6 +57,7 @@ app.add_middleware(
 )
 
 app.include_router(kpis.router)
+app.include_router(forecast.router)
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

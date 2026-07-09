@@ -395,6 +395,14 @@ def get_desarrollo_detalle(session: Session, categoria: str) -> dict:
         """,
         {"categoria": categoria},
     )
+    vals = [float(p["tiempo_desarrollo_meses"]) for p in productos]
+    n_vals = len(vals)
+    mean_val = sum(vals) / n_vals if n_vals else 0.0
+    std_val = (
+        math.sqrt(sum((v - mean_val) ** 2 for v in vals) / (n_vals - 1))
+        if n_vals > 1
+        else 0.0
+    )
     for p in productos:
         p["tiempo_desarrollo_meses"] = int(p["tiempo_desarrollo_meses"])
         lim_inf = float(stats["limite_inferior"]) if stats else None
@@ -405,9 +413,12 @@ def get_desarrollo_detalle(session: Session, categoria: str) -> dict:
             and lim_sup is not None
             and (val < lim_inf or val > lim_sup)
         )
+    stats_out = dict(stats) if stats else {}
+    stats_out["promedio"] = round(mean_val, 2)
+    stats_out["desviacion_estandar"] = round(std_val, 4)
     return {
         "productos": productos,
-        "stats": stats,
+        "stats": stats_out,
         "categoria": categoria,
         "meta": METAS["tiempo_desarrollo"],
     }
@@ -719,6 +730,18 @@ def get_kpi_modal(
             stats.get("limite_superior") if stats else None,
         )
         serie = _filter_serie(serie, anio, trimestre, mes, freq)
+        svals = [p["valor"] for p in serie]
+        n_s = len(svals)
+        mean_s = sum(svals) / n_s if n_s else 0.0
+        std_s = (
+            math.sqrt(sum((v - mean_s) ** 2 for v in svals) / (n_s - 1))
+            if n_s > 1
+            else 0.0
+        )
+        if stats is None:
+            stats = {}
+        stats["promedio"] = round(mean_s, 2)
+        stats["desviacion_estandar"] = round(std_s, 4)
         return {
             **base,
             "tipo": "tendencia",
@@ -805,7 +828,19 @@ def get_capacitacion_errores_modal(
         std_dev_y = math.sqrt(var_y / (n - 1)) if n > 1 else 0
         err = std_dev_y / math.sqrt(n)
     else:
-        slope, intercept, r_pearson, err = 0, 0, 0, 0
+        slope, intercept, r_pearson, err, mean_y, std_dev_y = 0, 0, 0, 0, 0, 0
+
+    sorted_ys = sorted(ys)
+    if n >= 4:
+        q1_y = sorted_ys[int(n * 0.25)]
+        q3_y = sorted_ys[int(n * 0.75)]
+        ric_y = q3_y - q1_y
+        lim_inf_y = q1_y - 1.5 * ric_y
+        lim_sup_y = q3_y + 1.5 * ric_y
+        med_idx = n // 2
+        mediana_y = (sorted_ys[med_idx - 1] + sorted_ys[med_idx]) / 2 if n % 2 == 0 else sorted_ys[med_idx]
+    else:
+        q1_y = q3_y = ric_y = lim_inf_y = lim_sup_y = mediana_y = 0
 
     stats = {
         "n_pares": n,
@@ -813,29 +848,26 @@ def get_capacitacion_errores_modal(
         "pendiente": round(slope, 4),
         "intercepto": round(intercept, 4),
         "error_estandar": round(err, 4),
+        "promedio": round(mean_y, 4),
+        "desviacion_estandar": round(std_dev_y, 4),
+        "q1": round(q1_y, 4),
+        "mediana": round(mediana_y, 4),
+        "q3": round(q3_y, 4),
+        "limite_inferior": round(lim_inf_y, 4),
+        "limite_superior": round(lim_sup_y, 4),
     }
 
-    residuals = [y - (intercept + slope * x) for x, y in zip(xs, ys)]
-    if residuals:
-        sorted_r = sorted(residuals)
-        q1 = sorted_r[int(n * 0.25)]
-        q3 = sorted_r[int(n * 0.75)]
-        ric = q3 - q1
-        lim_inf = q1 - 1.5 * ric
-        lim_sup = q3 + 1.5 * ric
-    else:
-        lim_inf = lim_sup = 0
-
     enriched = []
-    for p, res in zip(puntos, residuals):
+    for p in puntos:
+        val_y = float(p["tasa_errores"])
         enriched.append(
             {
                 "anio": int(p["anio"]),
                 "mes": int(p["mes"]),
                 "nombre_region": p["nombre_region"],
                 "horas_capacitacion": float(p["horas_capacitacion"]),
-                "tasa_errores": float(p["tasa_errores"]),
-                "outlier": res < lim_inf or res > lim_sup,
+                "tasa_errores": val_y,
+                "outlier": val_y < lim_inf_y or val_y > lim_sup_y,
             }
         )
 
