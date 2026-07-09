@@ -2,10 +2,11 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+import os
 
 from app.config import get_settings
 from app.database import reset_engine, test_connection
@@ -67,3 +68,10 @@ def root():
 @app.get("/dashboard")
 def dashboard_page():
     return {"status": "ok", "message": "Endpoint reemplazado por Angular frontend"}
+
+@app.post("/api/wakeup")
+def wakeup_server(x_cron_secret: str | None = Header(None, alias="X-Cron-Secret")):
+    expected_secret = os.getenv("CRON_SECRET", "")
+    if not x_cron_secret or x_cron_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="No autorizado")
+    return {"status": "ok", "message": "Render Online"}
