@@ -44,46 +44,52 @@ def get_periodo_actual(session: Session) -> dict:
     return row or {"anio": 2030, "trimestre": 4}
 
 
-def get_tarjetas(session: Session) -> dict:
+def get_tarjetas(
+    session: Session,
+    anio_inicio: int | None = None,
+    anio_fin: int | None = None,
+) -> dict:
     periodo = get_periodo_actual(session)
     anio = periodo["anio"]
     trimestre = periodo["trimestre"]
+
+    anio_filtro = anio_fin if anio_fin is not None else anio
 
     margen = fetch_one(
         session,
         """
         SELECT ROUND(AVG(margen_neto_pct)::numeric, 2) AS valor
         FROM hechos_financiero
-        WHERE anio = :anio AND trimestre = :trimestre
+        WHERE anio BETWEEN :anio_inicio AND :anio_fin
         """,
-        {"anio": anio, "trimestre": trimestre},
+        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
     )
     roi = fetch_one(
         session,
         """
-        SELECT roi_pct AS valor
+        SELECT ROUND(AVG(roi_pct)::numeric, 2) AS valor
         FROM hechos_corporativo
-        WHERE anio = :anio AND trimestre = :trimestre
+        WHERE anio BETWEEN :anio_inicio AND :anio_fin
         """,
-        {"anio": anio, "trimestre": trimestre},
+        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
     )
     nps = fetch_one(
         session,
         """
         SELECT ROUND(AVG(nps_score)::numeric, 2) AS valor
         FROM hechos_nps
-        WHERE anio = :anio AND trimestre = :trimestre
+        WHERE anio BETWEEN :anio_inicio AND :anio_fin
         """,
-        {"anio": anio, "trimestre": trimestre},
+        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
     )
     paises = fetch_one(
         session,
         """
-        SELECT paises_con_presencia AS valor
+        SELECT ROUND(AVG(paises_con_presencia)::numeric, 0) AS valor
         FROM vw_kpi_paises_anio
-        WHERE anio = :anio
+        WHERE anio BETWEEN :anio_inicio AND :anio_fin
         """,
-        {"anio": anio},
+        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
     )
 
     cards = []
@@ -112,20 +118,48 @@ def get_tarjetas(session: Session) -> dict:
         )
 
     return {
-        "periodo": {"anio": anio, "trimestre": trimestre},
+        "periodo": {"anio": anio_filtro, "trimestre": trimestre},
         "tarjetas": cards,
     }
 
 
-def get_desarrollo_categoria(session: Session) -> dict:
-    rows = fetch_all(
-        session,
-        """
-        SELECT categoria, promedio_meses, n_productos
-        FROM vw_kpi_desarrollo_categoria
-        ORDER BY categoria
-        """,
-    )
+def get_desarrollo_categoria(
+    session: Session,
+    anio_inicio: int | None = None,
+    anio_fin: int | None = None,
+) -> dict:
+    if anio_inicio is not None and anio_fin is not None:
+        rows = fetch_all(
+            session,
+            """
+            SELECT p.categoria,
+                   ROUND(AVG(p.tiempo_desarrollo_meses)::numeric, 2) AS promedio_meses,
+                   COUNT(DISTINCT p.producto_id) AS n_productos
+            FROM hechos_producto p
+            WHERE p.anio_lanzamiento BETWEEN :anio_inicio AND :anio_fin
+            GROUP BY p.categoria
+            ORDER BY p.categoria
+            """,
+            {"anio_inicio": anio_inicio, "anio_fin": anio_fin},
+        )
+        if not rows:
+            rows = fetch_all(
+                session,
+                """
+                SELECT categoria, promedio_meses, n_productos
+                FROM vw_kpi_desarrollo_categoria
+                ORDER BY categoria
+                """,
+            )
+    else:
+        rows = fetch_all(
+            session,
+            """
+            SELECT categoria, promedio_meses, n_productos
+            FROM vw_kpi_desarrollo_categoria
+            ORDER BY categoria
+            """,
+        )
     colores = {
         "iPhone": "var(--ink)",
         "Mac": "var(--gray-900)",
@@ -156,14 +190,26 @@ def get_desarrollo_categoria(session: Session) -> dict:
     }
 
 
-def get_capacitacion_errores(session: Session) -> dict:
+def get_capacitacion_errores(
+    session: Session,
+    anio_inicio: int | None = None,
+    anio_fin: int | None = None,
+) -> dict:
+    params: dict = {}
+    year_filter = ""
+    if anio_inicio is not None and anio_fin is not None:
+        year_filter = "WHERE anio BETWEEN :anio_inicio AND :anio_fin"
+        params = {"anio_inicio": anio_inicio, "anio_fin": anio_fin}
+
     puntos = fetch_all(
         session,
-        """
+        f"""
         SELECT anio, mes, nombre_region, horas_capacitacion, tasa_errores
         FROM vw_kpi_capacitacion_errores
+        {year_filter}
         ORDER BY anio, mes, nombre_region
         """,
+        params,
     )
     stats = fetch_one(
         session,
@@ -182,12 +228,22 @@ def get_capacitacion_errores(session: Session) -> dict:
     }
 
 
-def get_satisfaccion(session: Session, region: str | None = None) -> dict:
+def get_satisfaccion(
+    session: Session,
+    region: str | None = None,
+    anio_inicio: int | None = None,
+    anio_fin: int | None = None,
+) -> dict:
     params: dict = {}
     region_filter = ""
+    year_filter = ""
     if region:
         region_filter = "AND r.nombre_region = :region"
         params["region"] = region
+    if anio_inicio is not None and anio_fin is not None:
+        year_filter = "AND c.anio BETWEEN :anio_inicio AND :anio_fin"
+        params["anio_inicio"] = anio_inicio
+        params["anio_fin"] = anio_fin
 
     rows = fetch_all(
         session,
@@ -196,7 +252,7 @@ def get_satisfaccion(session: Session, region: str | None = None) -> dict:
                ROUND(AVG(c.indice_satisfaccion)::numeric, 2) AS valor
         FROM hechos_clima_laboral c
         JOIN dim_region r ON r.region_id = c.region_id
-        WHERE 1=1 {region_filter}
+        WHERE 1=1 {region_filter} {year_filter}
         GROUP BY c.anio, r.nombre_region
         ORDER BY c.anio, r.nombre_region
         """,
@@ -204,14 +260,21 @@ def get_satisfaccion(session: Session, region: str | None = None) -> dict:
     )
 
     if not region:
+        agg_params: dict = {}
+        agg_year_filter = ""
+        if anio_inicio is not None and anio_fin is not None:
+            agg_year_filter = "WHERE anio BETWEEN :anio_inicio AND :anio_fin"
+            agg_params = {"anio_inicio": anio_inicio, "anio_fin": anio_fin}
         agg = fetch_all(
             session,
-            """
+            f"""
             SELECT anio, ROUND(AVG(indice_satisfaccion)::numeric, 2) AS valor
             FROM hechos_clima_laboral
+            {agg_year_filter}
             GROUP BY anio
             ORDER BY anio
             """,
+            agg_params,
         )
         serie = [{"anio": int(r["anio"]), "valor": float(r["valor"])} for r in agg]
     else:

@@ -44,13 +44,17 @@ def health():
 
 
 @router.get("/dashboard")
-def dashboard(db: Session = Depends(get_db)):
+def dashboard(
+    anio_inicio: int | None = Query(None, description="Año de inicio del rango"),
+    anio_fin: int | None = Query(None, description="Año de fin del rango"),
+    db: Session = Depends(get_db),
+):
     _db_guard(db)
     return {
-        "tarjetas": kpi_service.get_tarjetas(db),
-        "desarrollo": kpi_service.get_desarrollo_categoria(db),
-        "capacitacion_errores": kpi_service.get_capacitacion_errores(db),
-        "satisfaccion": kpi_service.get_satisfaccion(db),
+        "tarjetas": kpi_service.get_tarjetas(db, anio_inicio, anio_fin),
+        "desarrollo": kpi_service.get_desarrollo_categoria(db, anio_inicio, anio_fin),
+        "capacitacion_errores": kpi_service.get_capacitacion_errores(db, anio_inicio, anio_fin),
+        "satisfaccion": kpi_service.get_satisfaccion(db, None, anio_inicio, anio_fin),
     }
 
 
