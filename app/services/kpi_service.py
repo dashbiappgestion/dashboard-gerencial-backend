@@ -128,38 +128,14 @@ def get_desarrollo_categoria(
     anio_inicio: int | None = None,
     anio_fin: int | None = None,
 ) -> dict:
-    if anio_inicio is not None and anio_fin is not None:
-        rows = fetch_all(
-            session,
-            """
-            SELECT p.categoria,
-                   ROUND(AVG(p.tiempo_desarrollo_meses)::numeric, 2) AS promedio_meses,
-                   COUNT(DISTINCT p.producto_id) AS n_productos
-            FROM hechos_producto p
-            WHERE p.anio_lanzamiento BETWEEN :anio_inicio AND :anio_fin
-            GROUP BY p.categoria
-            ORDER BY p.categoria
-            """,
-            {"anio_inicio": anio_inicio, "anio_fin": anio_fin},
-        )
-        if not rows:
-            rows = fetch_all(
-                session,
-                """
-                SELECT categoria, promedio_meses, n_productos
-                FROM vw_kpi_desarrollo_categoria
-                ORDER BY categoria
-                """,
-            )
-    else:
-        rows = fetch_all(
-            session,
-            """
-            SELECT categoria, promedio_meses, n_productos
-            FROM vw_kpi_desarrollo_categoria
-            ORDER BY categoria
-            """,
-        )
+    rows = fetch_all(
+        session,
+        """
+        SELECT categoria, promedio_meses, n_productos
+        FROM vw_kpi_desarrollo_categoria
+        ORDER BY categoria
+        """,
+    )
     colores = {
         "iPhone": "var(--ink)",
         "Mac": "var(--gray-900)",
