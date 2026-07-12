@@ -38,10 +38,12 @@ def run_bayesian_forecast(
 
     if not xs or not ys:
         return None
-
-    slope_ols, intercept_ols, se_slope, se_intercept, var_res = ols_stats(xs, ys)
-    n = len(xs)
-
+    xs_raw = [float(x) for x in xs]
+    x_mean = sum(xs_raw) / len(xs_raw)
+    xs_c = [x - x_mean for x in xs_raw]
+    x_star_c = float(x_star) - x_mean
+    slope_ols, intercept_ols, se_slope, se_intercept, var_res = ols_stats(xs_c, ys)
+    n = len(xs_c)
     if escenario == "real":
         return None
 
@@ -71,7 +73,7 @@ def run_bayesian_forecast(
     V0 = np.array([[v0_00, 0], [0, v0_11]])
     V0_inv = np.linalg.inv(V0)
 
-    X = np.column_stack((np.ones(n), np.array(xs, dtype=float)))
+    X = np.column_stack((np.ones(n), np.array(xs_c, dtype=float)))
     y = np.array(ys, dtype=float)
 
     Vn_inv = V0_inv + X.T @ X
@@ -86,7 +88,7 @@ def run_bayesian_forecast(
     bn_val = b0 + 0.5 * (y.T @ y + m0.T @ V0_inv @ m0 - mn.T @ Vn_inv @ mn)
     bn = max(1e-10, bn_val)
 
-    x_star_vec = np.array([1.0, x_star])
+    x_star_vec = np.array([1.0, x_star_c])
     loc = x_star_vec.T @ mn
     scale_sq = (bn / an) * (1 + x_star_vec.T @ Vn @ x_star_vec)
     scale = math.sqrt(max(0, scale_sq))
