@@ -46,7 +46,6 @@ def forecast_2031(req: ForecastRequest, db: Session = Depends(get_db)):
     response = {}
     custom = req.parametros_personalizados
 
-    # Helper function for cards and line charts
     def do_forecast(key: str, xs: list, ys: list, x_star: float, c_params: CustomParams | None):
         return run_bayesian_forecast(
             xs=xs,
@@ -57,42 +56,36 @@ def forecast_2031(req: ForecastRequest, db: Session = Depends(get_db)):
             custom_params=c_params.model_dump() if c_params else None
         )
 
-    # Margen Neto
     data_margen = kpi_service.get_margen_historico(db, req.region)
     if data_margen and "serie" in data_margen:
         xs = [p["anio"] + (p["trimestre"] - 1)/4 for p in data_margen["serie"]]
         ys = [p["valor"] for p in data_margen["serie"]]
         response["margen_neto"] = do_forecast("margen_neto", xs, ys, 2031.5, custom.margen_neto if custom else None)
 
-    # ROI
     data_roi = kpi_service.get_roi_historico(db)
     if data_roi and "serie" in data_roi:
         xs = [p["anio"] + (p["trimestre"] - 1)/4 for p in data_roi["serie"]]
         ys = [p["valor"] for p in data_roi["serie"]]
         response["roi"] = do_forecast("roi", xs, ys, 2031.5, custom.roi if custom else None)
 
-    # NPS
     data_nps = kpi_service.get_nps_historico(db, req.region)
     if data_nps and "serie" in data_nps:
         xs = [p["anio"] + (p["trimestre"] - 1)/4 for p in data_nps["serie"]]
         ys = [p["valor"] for p in data_nps["serie"]]
         response["nps"] = do_forecast("nps", xs, ys, 2031.5, custom.nps if custom else None)
 
-    # Paises
     data_paises = kpi_service.get_paises_historico(db)
     if data_paises and "serie" in data_paises:
         xs = [p["anio"] for p in data_paises["serie"]]
         ys = [p["valor"] for p in data_paises["serie"]]
         response["paises"] = do_forecast("paises", xs, ys, 2031, custom.paises if custom else None)
 
-    # Satisfaccion
     data_sat = kpi_service.get_satisfaccion(db, req.region)
     if data_sat and "serie" in data_sat:
         xs = [p["anio"] for p in data_sat["serie"]]
         ys = [p["valor"] for p in data_sat["serie"]]
         response["satisfaccion"] = do_forecast("satisfaccion", xs, ys, 2031, custom.satisfaccion if custom else None)
 
-    # Capacitacion vs Errores
     data_cap = kpi_service.get_capacitacion_errores_modal(db, req.region, None, None, {})
     if data_cap and "puntos" in data_cap:
         xs_t = [p["anio"] + (p["mes"] - 1)/12 for p in data_cap["puntos"]]
@@ -101,7 +94,6 @@ def forecast_2031(req: ForecastRequest, db: Session = Depends(get_db)):
         response["horas_capacitacion"] = do_forecast("horas_capacitacion", xs_t, ys_horas, 2031.5, custom.horas_capacitacion if custom else None)
         response["tasa_errores"] = do_forecast("tasa_errores", xs_t, ys_errores, 2031.5, custom.tasa_errores if custom else None)
 
-    # Desarrollo por categoria
     data_cats = kpi_service.get_desarrollo_categoria(db)
     desarrollo_res = {}
     if data_cats and "categorias" in data_cats:

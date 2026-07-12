@@ -48,6 +48,12 @@ class Settings:
             "*",
         ]
 
+        self.cerebras_api_keys = [
+            os.getenv(f"CEREBRAS_API_KEY_{i}", "").strip() for i in range(1, 11)
+        ]
+        self.cerebras_api_keys = [k for k in self.cerebras_api_keys if k]
+        self.cerebras_model = os.getenv("CEREBRAS_MODEL", "gpt-oss-120b")
+
 
 @lru_cache
 def get_settings() -> Settings:

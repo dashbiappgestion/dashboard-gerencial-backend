@@ -777,15 +777,21 @@ def get_kpi_modal(
     if kpi_id == "desarrollo":
         cat = categoria or "iPhone"
         detalle = get_desarrollo_detalle(session, cat, anio_inicio, anio_fin)
-        serie = [
-            {
-                "label": p["nombre_producto"],
-                "valor": float(p["tiempo_desarrollo_meses"]),
-                "x": i,
-                "outlier": p["outlier"],
-            }
-            for i, p in enumerate(detalle["productos"])
-        ]
+        serie = []
+        for i, p in enumerate(detalle["productos"]):
+            try:
+                anio_lanz = int(str(p["fecha_lanzamiento"]).split("-")[0])
+            except (ValueError, TypeError):
+                anio_lanz = i
+            serie.append(
+                {
+                    "label": p["nombre_producto"],
+                    "valor": float(p["tiempo_desarrollo_meses"]),
+                    "x": anio_lanz,
+                    "anio": anio_lanz,
+                    "outlier": p["outlier"],
+                }
+            )
         return {
             **base,
             "tipo": "productos",

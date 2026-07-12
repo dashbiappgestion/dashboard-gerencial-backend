@@ -6,6 +6,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from app.routers import kpis, forecast, chat
 import os
 
 from app.config import get_settings
@@ -58,6 +59,9 @@ app.add_middleware(
 
 app.include_router(kpis.router)
 app.include_router(forecast.router)
+app.include_router(kpis.router)
+app.include_router(forecast.router)
+app.include_router(chat.router)
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
