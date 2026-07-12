@@ -54,9 +54,8 @@ def dashboard(
         "tarjetas": kpi_service.get_tarjetas(db, anio_inicio, anio_fin),
         "desarrollo": kpi_service.get_desarrollo_categoria(db, anio_inicio, anio_fin),
         "capacitacion_errores": kpi_service.get_capacitacion_errores(db, anio_inicio, anio_fin),
-        "satisfaccion": kpi_service.get_satisfaccion(db, None, anio_inicio, anio_fin),
+        "satisfaccion": kpi_service.get_satisfaccion(db, None, None, None),
     }
-
 
 @router.get("/kpis/tarjetas")
 def tarjetas(db: Session = Depends(get_db)):
@@ -125,12 +124,14 @@ def kpi_modal(
     trimestre: int | None = Query(None),
     mes: int | None = Query(None),
     categoria: str | None = Query(None),
+    anio_inicio: int | None = Query(None),
+    anio_fin: int | None = Query(None),
     db: Session = Depends(get_db),
 ):
     _db_guard(db)
     try:
         return kpi_service.get_kpi_modal(
-            db, kpi_id, region, anio, trimestre, mes, categoria
+            db, kpi_id, region, anio, trimestre, mes, categoria, anio_inicio, anio_fin
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -60,36 +60,36 @@ def get_tarjetas(
         """
         SELECT ROUND(AVG(margen_neto_pct)::numeric, 2) AS valor
         FROM hechos_financiero
-        WHERE anio BETWEEN :anio_inicio AND :anio_fin
+        WHERE anio = :anio_filtro
         """,
-        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
+        {"anio_filtro": anio_filtro},
     )
     roi = fetch_one(
         session,
         """
         SELECT ROUND(AVG(roi_pct)::numeric, 2) AS valor
         FROM hechos_corporativo
-        WHERE anio BETWEEN :anio_inicio AND :anio_fin
+        WHERE anio = :anio_filtro
         """,
-        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
+        {"anio_filtro": anio_filtro},
     )
     nps = fetch_one(
         session,
         """
         SELECT ROUND(AVG(nps_score)::numeric, 2) AS valor
         FROM hechos_nps
-        WHERE anio BETWEEN :anio_inicio AND :anio_fin
+        WHERE anio = :anio_filtro
         """,
-        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
+        {"anio_filtro": anio_filtro},
     )
     paises = fetch_one(
         session,
         """
         SELECT ROUND(AVG(paises_con_presencia)::numeric, 0) AS valor
         FROM vw_kpi_paises_anio
-        WHERE anio BETWEEN :anio_inicio AND :anio_fin
+        WHERE anio = :anio_filtro
         """,
-        {"anio_inicio": anio_inicio or anio_filtro, "anio_fin": anio_filtro},
+        {"anio_filtro": anio_filtro},
     )
 
     cards = []
@@ -128,13 +128,24 @@ def get_desarrollo_categoria(
     anio_inicio: int | None = None,
     anio_fin: int | None = None,
 ) -> dict:
+    where_clause = ""
+    params: dict = {}
+    if anio_inicio is not None and anio_fin is not None:
+        where_clause = "WHERE EXTRACT(YEAR FROM fecha_lanzamiento) BETWEEN :anio_inicio AND :anio_fin"
+        params = {"anio_inicio": anio_inicio, "anio_fin": anio_fin}
+
     rows = fetch_all(
         session,
-        """
-        SELECT categoria, promedio_meses, n_productos
-        FROM vw_kpi_desarrollo_categoria
+        f"""
+        SELECT categoria,
+               ROUND(AVG(tiempo_desarrollo_meses)::numeric, 2) AS promedio_meses,
+               COUNT(*) AS n_productos
+        FROM dim_producto
+        {where_clause}
+        GROUP BY categoria
         ORDER BY categoria
         """,
+        params,
     )
     colores = {
         "iPhone": "var(--ink)",
@@ -164,7 +175,6 @@ def get_desarrollo_categoria(
         "meta": meta,
         "status": _status(promedio_global, meta, invertido=True),
     }
-
 
 def get_capacitacion_errores(
     session: Session,
@@ -375,17 +385,29 @@ def get_paises_historico(session: Session) -> dict:
     return {"serie": rows, "stats": stats}
 
 
-def get_desarrollo_detalle(session: Session, categoria: str) -> dict:
+def get_desarrollo_detalle(
+    session: Session,
+    categoria: str,
+    anio_inicio: int | None = None,
+    anio_fin: int | None = None,
+) -> dict:
+    where_clause = "WHERE categoria = :categoria"
+    params: dict = {"categoria": categoria}
+    if anio_inicio is not None and anio_fin is not None:
+        where_clause += " AND EXTRACT(YEAR FROM fecha_lanzamiento) BETWEEN :anio_inicio AND :anio_fin"
+        params["anio_inicio"] = anio_inicio
+        params["anio_fin"] = anio_fin
+
     productos = fetch_all(
         session,
-        """
+        f"""
         SELECT nombre_producto, tiempo_desarrollo_meses,
                fecha_inicio_desarrollo, fecha_lanzamiento
         FROM dim_producto
-        WHERE categoria = :categoria
+        {where_clause}
         ORDER BY fecha_lanzamiento
         """,
-        {"categoria": categoria},
+        params,
     )
     stats = fetch_one(
         session,
@@ -570,6 +592,8 @@ def get_kpi_modal(
     trimestre: int | None = None,
     mes: int | None = None,
     categoria: str | None = None,
+    anio_inicio: int | None = None,
+    anio_fin: int | None = None,
 ) -> dict:
     if kpi_id not in KPI_MODAL_CONFIG:
         raise ValueError(f"KPI desconocido: {kpi_id}")
@@ -752,7 +776,7 @@ def get_kpi_modal(
 
     if kpi_id == "desarrollo":
         cat = categoria or "iPhone"
-        detalle = get_desarrollo_detalle(session, cat)
+        detalle = get_desarrollo_detalle(session, cat, anio_inicio, anio_fin)
         serie = [
             {
                 "label": p["nombre_producto"],
@@ -770,7 +794,8 @@ def get_kpi_modal(
             "meta": config["meta"],
             "categoria": cat,
             "categorias": [
-                c["categoria"] for c in get_desarrollo_categoria(session)["categorias"]
+                c["categoria"]
+                for c in get_desarrollo_categoria(session, anio_inicio, anio_fin)["categorias"]
             ],
         }
 
