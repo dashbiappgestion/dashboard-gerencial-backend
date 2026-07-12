@@ -111,7 +111,7 @@ def paises_historico(db: Session = Depends(get_db)):
     return kpi_service.get_paises_historico(db)
 
 
-@router.get("/kpis/desarrollo/{categoria}")
+@router.get("/kpis/desarrollo/detalle/{categoria}")
 def desarrollo_detalle(categoria: str, db: Session = Depends(get_db)):
     return kpi_service.get_desarrollo_detalle(db, categoria)
 
